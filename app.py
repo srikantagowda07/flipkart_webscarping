@@ -12,18 +12,25 @@ logging.basicConfig(filename="scrapper.log", level=logging.INFO)
 app = Flask(__name__)
 
 
-def createSvg(data_list):
-    print("data", data_list)
+def createCsv(data_list):
     csv_file = 'output.csv'
     with open(csv_file, mode='a', newline='', encoding='utf-8') as file:
-      fieldnames = ['Review', 'Rating', 'Price', 'Product Name']
+      fieldnames = ['Review', 'Rating', 'Person Name', 'Title']
       writer = csv.DictWriter(file, fieldnames=fieldnames)
-      print("file.tell()", file.tell())
       if file.tell() == 0:
         writer.writeheader()
-        
       writer.writerows(data_list)
     print(f'Data has been written to {csv_file}.')
+    
+def createList(soup, tag, className):
+        element = soup.find_all(tag, class_=className)
+        List = []
+        for index,div in enumerate(element):
+          text = div.get_text(strip=True)
+          List.append(text)
+          if len(List) >= 10:
+                break;    
+        return List   
 
 
 @app.route("/", methods=['GET'])
@@ -48,33 +55,29 @@ def flipkartApi():
                 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"}
                 response = requests.get(f"{link}")
                 soup=BeautifulSoup(response.content, "html.parser")
-                elementProduceName = soup.find("span", class_="B_NuCI")
-                produceName= elementProduceName.get_text(strip=True)
-                elementRating = soup.find("span", class_="_2_R_DZ")
-                rating= elementRating.get_text(strip=True)
-                div_elements = soup.find_all("p", class_="_2-N8zT")
-                del div_elements[0]
-                reviewList = []
-                for index,div in enumerate(div_elements):
-                    text = div.get_text(strip=True)
-                    reviewList.append(text)
-                    if len(reviewList) > 10:
-                        break;
-                elementPrice = soup.find("div", class_="_16Jk6d")
-                price= elementPrice.get_text(strip=True)
-                payload = {
-                    "Review":  reviewList[0],
-                    "Rating": rating,
-                    "Price": price,
-                    "Product Name": produceName,
-                }
-                createSvg([payload])
-                return render_template('index.html')
+                personNameList=createList(soup, "p", "_2sc7ZR _2V5EHH");
+                titleList=createList(soup, "p", "_2-N8zT");
+                ratingList=createList(soup, "div", "_3LWZlK _1BLPMq");
+                reviewList=createList(soup, "div", "t-ZTKy");
+                payload = []
+                smallest = min([len(personNameList), len(titleList), len(ratingList) , len(reviewList)])
+                for x in range(smallest):
+                        data = {
+                                "Review":  reviewList[x] ,
+                                "Rating": ratingList[x],
+                                "Person Name":  personNameList[x],
+                                "Title": titleList[x],
+                        }
+                        payload.append(data)
+                else:
+                        for data in payload:
+                                createCsv([data])
+                return render_template('flipkart.html')
         except Exception as e:
                     logging.info(e)
                     return 'something is wrong'
      else:
-             return render_template('index.html')
+             return render_template('flipkart.html')
      
 
 @app.route("/review" , methods = ['POST' , 'GET'])
